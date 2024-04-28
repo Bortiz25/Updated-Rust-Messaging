@@ -1,10 +1,9 @@
-use crate::auth::authorize;
+use crate::{auth::authorize, requests_and_responses::TokenResponse};
 use super::models::User;
 use std::sync::Arc;
 use sqlx::PgPool;
-use warp::{ http::{HeaderMap, HeaderValue, Response, StatusCode}, reject, reply::{self, with_status}, Rejection, Reply};
+use warp::{ http::{HeaderMap, HeaderValue, StatusCode}, reject, reply::{self, with_status}, Rejection, Reply};
 use super::routes;
-use serde_json::json;
 use serde::Serialize;
 use super::auth::create_jwt;
 use super::errors;
@@ -14,21 +13,19 @@ use super::requests_and_responses::{UserResponse, Chat, ExistsQuery, Message};
 #[derive(Serialize)]
 struct EmptyJson {}
 
-#[derive(Debug)]
-struct JwtError;
-impl reject::Reject for JwtError {}
-
 pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert::Infallible> {
   if err.is_not_found() {
     Ok(reply::with_status("NOT_FOUND", StatusCode::NOT_FOUND))
   } else if let Some(_) = err.find::<errors::ConflictError>() {
     Ok(reply::with_status("CONFLICT", StatusCode::CONFLICT))
+  } else if let Some(_) = err.find::<errors::AuthorizationError>() {
+    Ok(reply::with_status("NOT AUTHORIZED", StatusCode::UNAUTHORIZED))
   } else {
     Ok(reply::with_status("INTERNAL_SERVER_ERROR", StatusCode::INTERNAL_SERVER_ERROR))
   }
 }
 
-pub async fn handle_query<F, T>(query_future: F) -> Result<T, Rejection> 
+async fn handle_query<F, T>(query_future: F) -> Result<T, Rejection> 
 where F: Future<Output = Result<T, sqlx::Error>> {
   let query_res = query_future.await;
   match query_res {
@@ -50,6 +47,16 @@ where F: Future<Output = Result<ExistsQuery, sqlx::Error>> {
   
 }
 
+async fn check_auth(user_id: i32, pool: Arc<PgPool>) -> Result<(), Rejection> {
+  let exists = handle_query_exists(sqlx::query_as!(ExistsQuery, "SELECT EXISTS (SELECT 1 FROM users WHERE user_id=$1) AS exists", user_id).fetch_one(&*pool)).await;
+  if exists {
+    Ok(())
+  } else {
+    Err(reject::custom(errors::AuthorizationError {}))
+  }
+}
+
+
 pub async fn get_user(user_id: i32, pool: Arc<PgPool>) -> Result<impl Reply, Rejection> {
   let user = handle_query(sqlx::query_as!( User, 
     "SELECT * FROM users WHERE user_id = $1", user_id
@@ -58,44 +65,18 @@ pub async fn get_user(user_id: i32, pool: Arc<PgPool>) -> Result<impl Reply, Rej
   Ok(reply::json(&res))
 }
 
-#[derive(Serialize)]
-pub struct LoginResponseBody {
-  token: String,
-}
-
-// this doesn't need to be like this
-impl Reply for LoginResponseBody {
-  fn into_response(self) -> reply::Response {
-    let body = json!({
-      "token": self.token,
-    }).to_string();
-
-    Response::builder()
-      .header("Content-Type", "application/json")
-      .body(warp::hyper::Body::from(body))
-      .unwrap()
-  }
-}
-
-pub async fn login(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<reply::Json>, Rejection> {
+pub async fn login(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   let username: String = body.username;
   let password: String = body.password;
-  let get_user_res = sqlx::query_as!(User, "SELECT * FROM users WHERE username=$1 AND password=$2", username, password).fetch_optional(&*pool).await;
-  let user_id = match get_user_res {
-    Ok(ouser) => match ouser {
-      Some(user) => user.user_id,
-      None => return Ok(reply::with_status(reply::json(&EmptyJson{}), StatusCode::NOT_FOUND)) 
-    },
-    Err(_) => return Err(reject::custom(errors::DatabaseError {}))
-  };
+  let user = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE username=$1 AND password=$2", username, password).fetch_one(&*pool)).await?;
 
-  let otoken = create_jwt(user_id);
+  let otoken = create_jwt(user.user_id);
   let token = match otoken {
     Ok(token) => token,
-    Err(_) => return Err(reject::custom(JwtError))
+    Err(_) => return Err(reject::custom(errors::JwtError))
   };
 
-  let response_body = LoginResponseBody {token: String::from(token)};
+  let response_body = TokenResponse {token: String::from(token)};
   Ok(reply::with_status(reply::json(&response_body), StatusCode::CREATED))
 }
 
@@ -112,6 +93,7 @@ pub async fn create_user(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> R
 }
 
 pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<reply::Json>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
   let chats = handle_query(sqlx::query_as!( Chat,
     "SELECT (c.chat_id)
     FROM user_to_chat u2c
@@ -124,6 +106,7 @@ pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithSta
 }
 
 pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
   let buddy_id = body.buddy_id;
   let user = handle_query(sqlx::query_as!( User, 
     "SELECT * FROM users WHERE user_id = $1", user_id
@@ -154,6 +137,7 @@ pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool
 }
 
 pub async fn create_message(buddy_username: String, user_id: i32, body: routes::CreateMessageRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
   let message = body.message;
 
   let buddy = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE username=$1", buddy_username).fetch_one(&*pool)).await?;
@@ -182,6 +166,7 @@ pub async fn create_message(buddy_username: String, user_id: i32, body: routes::
 }
 
 pub async fn get_messages(buddy_username: String, user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<reply::Json>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
   let buddy = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE username=$1", buddy_username).fetch_one(&*pool)).await?;
   
   let chat = handle_query(sqlx::query_as!(Chat, 
@@ -205,10 +190,10 @@ pub async fn get_user_with_token(headers: HeaderMap<HeaderValue>, pool: Arc<PgPo
       let ouid = suid.parse::<i32>();
       match ouid {
         Ok(uid) => uid,
-        Err(_) => return Err(reject::custom(JwtError))
+        Err(_) => return Err(reject::custom(errors::JwtError))
       }
     },
-    Err(_) => return Err(reject::custom(JwtError))
+    Err(_) => return Err(reject::custom(errors::JwtError))
   };
   let user = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE user_id=$1", user_id).fetch_one(&*pool)).await?;
   let res = UserResponse{ user_id: user.user_id, username: user.username };

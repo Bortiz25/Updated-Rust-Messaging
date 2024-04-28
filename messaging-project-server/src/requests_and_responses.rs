@@ -22,3 +22,8 @@ pub struct Message {
 pub struct ExistsQuery {
     pub exists: Option<bool>,
 }
+
+#[derive(Serialize)]
+pub struct TokenResponse {
+    pub token: String,
+}
