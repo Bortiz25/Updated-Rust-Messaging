@@ -8,7 +8,7 @@ use serde::Serialize;
 use super::auth::create_jwt;
 use super::errors;
 use std::future::Future;
-use super::requests_and_responses::{UserResponse, Chat, ExistsQuery, Message};
+use super::requests_and_responses::{UserResponse, Chat, ExistsQuery, Message, ChatResponse};
 
 #[derive(Serialize)]
 struct EmptyJson {}
@@ -94,17 +94,23 @@ pub async fn create_user(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> R
 
 pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<reply::Json>, Rejection> {
   check_auth(user_id, pool.clone()).await?;
-  let chats = handle_query(sqlx::query_as!( Chat,
-    "SELECT (c.chat_id)
-    FROM user_to_chat u2c
-    JOIN chats c
-    ON c.chat_id = u2c.chat_id
-    WHERE user_id=$1", user_id
+  let chats = handle_query(sqlx::query_as!( ChatResponse,
+    "SELECT c.chat_id, m.message AS last_message, u.username AS with
+    FROM (SELECT * FROM user_to_chat fu2c WHERE fu2c.user_id=$1) u2c
+    JOIN chats c ON c.chat_id = u2c.chat_id
+    JOIN (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY message_id DESC) as rn FROM messages 
+    ) m ON c.chat_id = m.chat_id
+    JOIN (
+      SELECT * FROM user_to_chat u2c2 WHERE u2c2.user_id != $1
+    ) b ON c.chat_id = b.chat_id
+    JOIN users u ON u.user_id = b.user_id
+    ", user_id
   ).fetch_all(&*pool)).await?;
   
   Ok(reply::with_status(reply::json(&chats), StatusCode::OK))
 }
-
+// user_to_chat u2c2 ON u2c2.chat_id = u2c.chat_id WHERE u2c2.user_id != $1
 pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   check_auth(user_id, pool.clone()).await?;
   let buddy_id = body.buddy_id;

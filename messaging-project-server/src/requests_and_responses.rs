@@ -12,6 +12,13 @@ pub struct Chat {
 }
 
 #[derive(Serialize)]
+pub struct ChatResponse {
+    pub chat_id: i32,
+    pub with: String,
+    pub last_message: String,
+}
+
+#[derive(Serialize)]
 pub struct Message {
     pub message_id: i32,
     pub chat_id: i32,

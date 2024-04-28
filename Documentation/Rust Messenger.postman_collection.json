@@ -14,7 +14,7 @@
 					"bearer": [
 						{
 							"key": "token",
-							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjEifQ.GnEv8Px5PO0KdWse-HEkZQGH8sO8fiEF5SOMPR16LDD2jFDvi_y7VfTzN31xeOgr_KucKq78VUjjBaeHGznVAA",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDQyMjM0NTR9.KUvPy3VlTGoBlCkU_UZGnE_s7VgbbCgxVgZI6QcA7-lu_hsJJtBIz1npLWDAvVe_wT2UpnJfJnZU32q-DOOwSg",
 							"type": "string"
 						}
 					]
@@ -22,14 +22,15 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8001/users",
+					"raw": "http://localhost:8001/users/2",
 					"protocol": "http",
 					"host": [
 						"localhost"
 					],
 					"port": "8001",
 					"path": [
-						"users"
+						"users",
+						"2"
 					]
 				}
 			},
@@ -110,7 +111,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"username\": \"lmartin13\",\n    \"password\": \"password1\"\n}",
+					"raw": "{\n    \"username\": \"lmartin17\",\n    \"password\": \"password1\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -157,7 +158,7 @@
 					}
 				},
 				"url": {
-					"raw": "http://localhost:8001/chats/other_guy/",
+					"raw": "http://localhost:8001/chats/lmartin16/",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -165,7 +166,7 @@
 					"port": "8001",
 					"path": [
 						"chats",
-						"other_guy",
+						"lmartin16",
 						""
 					]
 				}
@@ -180,7 +181,7 @@
 					"bearer": [
 						{
 							"key": "token",
-							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDQyMjM0NTR9.KUvPy3VlTGoBlCkU_UZGnE_s7VgbbCgxVgZI6QcA7-lu_hsJJtBIz1npLWDAvVe_wT2UpnJfJnZU32q-DOOwSg",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDU3Nzg3ODZ9._GLs-prHgth0gYak9n0KrNoIP484NrhAXtHnLbp33is4k9FKERZXT5V3HfHOlkIu5F5AL3iaJ3WtxQ1FQGgiwQ",
 							"type": "string"
 						}
 					]
@@ -217,7 +218,7 @@
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "http://localhost:8001/chats/other_guy/messages",
+					"raw": "http://localhost:8001/chats/lmartin16/messages",
 					"protocol": "http",
 					"host": [
 						"localhost"
@@ -225,7 +226,7 @@
 					"port": "8001",
 					"path": [
 						"chats",
-						"other_guy",
+						"lmartin16",
 						"messages"
 					]
 				}
