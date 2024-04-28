@@ -99,8 +99,8 @@ pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithSta
     FROM (SELECT * FROM user_to_chat fu2c WHERE fu2c.user_id=$1) u2c
     JOIN chats c ON c.chat_id = u2c.chat_id
     JOIN (
-      SELECT *, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY message_id DESC) as rn FROM messages 
-    ) m ON c.chat_id = m.chat_id
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY message_id DESC) as rn FROM messages
+    ) m ON c.chat_id = m.chat_id AND m.rn = 1
     JOIN (
       SELECT * FROM user_to_chat u2c2 WHERE u2c2.user_id != $1
     ) b ON c.chat_id = b.chat_id
@@ -110,7 +110,7 @@ pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithSta
   
   Ok(reply::with_status(reply::json(&chats), StatusCode::OK))
 }
-// user_to_chat u2c2 ON u2c2.chat_id = u2c.chat_id WHERE u2c2.user_id != $1
+
 pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   check_auth(user_id, pool.clone()).await?;
   let buddy_id = body.buddy_id;
