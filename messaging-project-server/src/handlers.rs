@@ -281,3 +281,14 @@ pub async fn get_chats_gc (user_id: i32, pool: Arc<PgPool>) -> Result<reply::Wit
 
   Ok(reply::with_status(reply::json(&filtered_chats), StatusCode::OK))
 }
+
+pub async fn get_messages_gc(chat_id: i32, user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
+  let _is_in_chat = handle_query_exists(sqlx::query_as!(ExistsQuery, 
+    "SELECT EXISTS(SELECT 1 FROM user_to_chat WHERE user_id=$1 AND chat_id=$2) AS exists", user_id, chat_id
+  ).fetch_one(&*pool)).await;
+  let messages = handle_query(sqlx::query_as!(Message, 
+    "SELECT * FROM messages WHERE chat_id = $1", chat_id
+  ).fetch_all(&*pool)).await?;
+  Ok(reply::with_status(reply::json(&messages), StatusCode::OK))
+}

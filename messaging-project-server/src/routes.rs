@@ -26,6 +26,7 @@ pub fn routes(
         .or(get_user_with_token(pool.clone()))
         .or(create_message_gc(pool.clone()))
         .or(get_chats_gc(pool.clone()))
+        .or(get_messages_gc(pool.clone()))
         .recover(handlers::handle_rejection)
 }
 
@@ -115,6 +116,14 @@ fn get_chats_gc(pool: Arc<PgPool>) -> impl Filter<Extract = impl Reply, Error = 
     .and(with_auth())
     .and(with_db(pool))
     .and_then(handlers::get_chats_gc)
+}
+
+fn get_messages_gc(pool: Arc<PgPool>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+  warp::path!("gchats" / i32)
+  .and(warp::get())
+  .and(with_auth())
+  .and(with_db(pool))
+  .and_then(handlers::get_messages_gc)
 }
 
 fn with_db(
