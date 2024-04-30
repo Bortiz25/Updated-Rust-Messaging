@@ -1,14 +1,13 @@
-use crate::{auth::authorize, requests_and_responses::TokenResponse};
+use crate::{auth::authorize, requests_and_responses::{CreateChatRequestBody, CreateMessageRequestBody, LoginRequestBody, TokenResponse}};
 use super::models::User;
 use std::sync::Arc;
 use sqlx::PgPool;
 use warp::{ http::{HeaderMap, HeaderValue, StatusCode}, reject, reply::{self, with_status}, Rejection, Reply};
-use super::routes;
 use serde::Serialize;
 use super::auth::create_jwt;
 use super::errors;
 use std::future::Future;
-use super::requests_and_responses::{UserResponse, Chat, ExistsQuery, Message, ChatResponse};
+use super::requests_and_responses::{UserResponse, Chat, ExistsQuery, Message, ChatResponse, CreateMessageGCRequestBody};
 
 #[derive(Serialize)]
 struct EmptyJson {}
@@ -65,7 +64,7 @@ pub async fn get_user(user_id: i32, pool: Arc<PgPool>) -> Result<impl Reply, Rej
   Ok(reply::json(&res))
 }
 
-pub async fn login(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+pub async fn login(body: LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   let username: String = body.username;
   let password: String = body.password;
   let user = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE username=$1 AND password=$2", username, password).fetch_one(&*pool)).await?;
@@ -80,7 +79,7 @@ pub async fn login(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> Result<
   Ok(reply::with_status(reply::json(&response_body), StatusCode::CREATED))
 }
 
-pub async fn create_user(body: routes::LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+pub async fn create_user(body: LoginRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   let username: String = body.username;
   let password: String = body.password;
   let username_exists = handle_query_exists(sqlx::query_as!(ExistsQuery, "SELECT EXISTS(SELECT 1 FROM users WHERE username=$1) AS exists", username).fetch_one(&*pool)).await;
@@ -111,7 +110,7 @@ pub async fn get_chats(user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithSta
   Ok(reply::with_status(reply::json(&chats), StatusCode::OK))
 }
 
-pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+pub async fn create_chat(user_id: i32, body: CreateChatRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   check_auth(user_id, pool.clone()).await?;
   let buddy_id = body.buddy_id;
   let user = handle_query(sqlx::query_as!( User, 
@@ -142,7 +141,7 @@ pub async fn create_chat(user_id: i32, body: routes::CreateChatRequestBody, pool
   Ok(reply::with_status("Created", StatusCode::CREATED))
 }
 
-pub async fn create_message(buddy_username: String, user_id: i32, body: routes::CreateMessageRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+pub async fn create_message(buddy_username: String, user_id: i32, body: CreateMessageRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
   check_auth(user_id, pool.clone()).await?;
   let message = body.message;
 
@@ -204,4 +203,92 @@ pub async fn get_user_with_token(headers: HeaderMap<HeaderValue>, pool: Arc<PgPo
   let user = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE user_id=$1", user_id).fetch_one(&*pool)).await?;
   let res = UserResponse{ user_id: user.user_id, username: user.username };
   Ok(with_status(reply::json(&res), StatusCode::OK))
+}
+
+pub async fn create_message_gc(user_id: i32, body: CreateMessageGCRequestBody, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
+  let buddies = handle_query(sqlx::query_as!(User, "SELECT * FROM users WHERE username=ANY($1)", &body.buddies).fetch_all(&*pool)).await?;
+  let mut ids = buddies.into_iter().map(|u| {u.user_id}).collect::<Vec<i32>>();
+  ids.push(user_id);
+  ids.sort();
+  let chat = handle_query(sqlx::query_as!(Chat, 
+                                          "SELECT c.chat_id
+                                           FROM chats c
+                                           JOIN user_to_chat u2c ON c.chat_id = u2c.chat_id
+                                           GROUP BY c.chat_id
+                                           HAVING ARRAY_AGG(u2c.user_id ORDER BY u2c.user_id) = $1
+                                          ", &ids
+                                    ).fetch_optional(&*pool)).await?;
+  
+  let chat_id = match chat {
+    Some(c) => c.chat_id,
+    None => {
+      let new_chat = handle_query(sqlx::query_as!(Chat, "INSERT INTO chats DEFAULT VALUES RETURNING *").fetch_one(&*pool)).await?;
+      for id in ids {
+        handle_query(sqlx::query!("INSERT INTO user_to_chat (user_id, chat_id) VALUES ($1, $2)", id, new_chat.chat_id).execute(&*pool)).await?;
+      }
+      new_chat.chat_id
+    }
+  };
+
+  let _create_successful = handle_query(sqlx::query!(
+    "INSERT INTO messages (chat_id, sent_from, message) VALUES ($1, $2, $3)", chat_id, user_id, body.message
+  ).execute(&*pool)).await?;
+  Ok(reply::with_status("CREATED", StatusCode::CREATED))
+}
+
+pub struct ChatResponseGCMaybe {
+    pub chat_id: i32,
+    pub with: Option<Vec<String>>,
+    pub last_message: Option<Vec<String>>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ChatResponseGC {
+  pub chat_id: i32,
+  pub with: Vec<String>,
+  pub last_message: String,
+}
+
+
+
+pub async fn get_chats_gc (user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
+  let chats = handle_query(sqlx::query_as!( ChatResponseGCMaybe,
+    "
+    SELECT c.chat_id, ARRAY_AGG(m.message) AS last_message, ARRAY_AGG(u.username) AS with
+    FROM (SELECT * FROM user_to_chat fu2c WHERE fu2c.user_id=$1) u2c
+    JOIN chats c ON c.chat_id = u2c.chat_id
+    JOIN (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY message_id DESC) as rn FROM messages
+    ) m ON c.chat_id = m.chat_id AND m.rn = 1
+    JOIN (
+      SELECT * FROM user_to_chat u2c2 WHERE u2c2.user_id != $1
+    ) b ON c.chat_id = b.chat_id
+    JOIN users u ON u.user_id = b.user_id
+    GROUP BY c.chat_id
+    ", user_id
+  ).fetch_all(&*pool)).await?;
+
+  let filtered_chats: Vec<ChatResponseGC> = chats.into_iter().filter(|c| {
+    c.with.is_some() && c.last_message.is_some()
+  }).map(|c| {
+    ChatResponseGC {
+      chat_id: c.chat_id, 
+      with: c.with.unwrap(), 
+      last_message: c.last_message.unwrap().first().unwrap_or(&String::from("")).to_string()}
+  }).collect();
+
+  Ok(reply::with_status(reply::json(&filtered_chats), StatusCode::OK))
+}
+
+pub async fn get_messages_gc(chat_id: i32, user_id: i32, pool: Arc<PgPool>) -> Result<reply::WithStatus<impl Reply>, Rejection> {
+  check_auth(user_id, pool.clone()).await?;
+  let _is_in_chat = handle_query_exists(sqlx::query_as!(ExistsQuery, 
+    "SELECT EXISTS(SELECT 1 FROM user_to_chat WHERE user_id=$1 AND chat_id=$2) AS exists", user_id, chat_id
+  ).fetch_one(&*pool)).await;
+  let messages = handle_query(sqlx::query_as!(Message, 
+    "SELECT * FROM messages WHERE chat_id = $1", chat_id
+  ).fetch_all(&*pool)).await?;
+  Ok(reply::with_status(reply::json(&messages), StatusCode::OK))
 }
