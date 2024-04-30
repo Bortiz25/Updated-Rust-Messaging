@@ -1,16 +1,14 @@
 //use std::fmt::Error;
 use std::process;
 use std::io;
-use messaging_project::CreateUserCommand;
 use tokio::runtime;
 
 use messaging_project::{
-    ChatCommand,
-    DeleteCommand,
-    ListCommand,
-    MessageCommand,
+    messages_connected_user,
+    send_message,
+    create_user_account,
     UserCommand,
-    LoginCommand,
+    login_user,
     ret_chats,
 };
 
@@ -31,27 +29,20 @@ fn main() {
         let rt = runtime::Runtime::new().unwrap();
         //let check = &the_args[0];
         if &args[0] == &"send" {
-            let config = rt.block_on(MessageCommand::build(args, &tok)).unwrap();
+            let config = rt.block_on(send_message(args, &tok)).unwrap();
             println!("Message: {:?}", config);
         } else if &args[0] == &"messages" {
-            let config = rt.block_on(ChatCommand::build(args, &tok)).unwrap();
+            let config = rt.block_on(messages_connected_user(args, &tok)).unwrap();
             println!("All messages: {:?}", config);
         } else if &args[0] == &"chats" {
             let config = rt.block_on(ret_chats(args, &tok)).unwrap();
             println!("All Chats{:?}", config);
-        } 
-        else if &args[0] == &"list" {
-            let config = ListCommand::build(args).unwrap_or_else(|err| {
-                println!("Problem parsing arguments: {err}");
-                process::exit(1);
-            });
-            println!("Successful constructed, {:?}", config);
         } else if &args[0] == &"username" {
-            let config = rt.block_on(LoginCommand::build(args)).unwrap();
+            let config = rt.block_on(login_user(args)).unwrap();
             tok = config;
             println!("Successfully signed in!");
         } else if &args[0] == &"createuser" {
-            let config = rt.block_on(CreateUserCommand::build(args)).unwrap();
+            let config = rt.block_on(create_user_account(args)).unwrap();
             println!("Create User Status, {:?}", config);
             println!("202 : successful user creation");
         } else if &args[0] == &":q" {
