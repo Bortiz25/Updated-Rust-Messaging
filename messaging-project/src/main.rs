@@ -21,7 +21,11 @@ fn main() {
         let _stream = io::stdin().read_line(&mut buf);
         buf.pop();
         let new_args: Vec<&str> = buf.split("\"").collect();
-        let mut args: Vec<&str> = new_args[0].split(" ").collect();
+        //let mut args: Vec<&str> = new_args[0].split(" ").collect();
+
+        // args_first used for messages
+        let args_first: Vec<&str> = new_args[0].split(":").collect();
+        let mut args: Vec<&str> = args_first[0].split(" ").collect();
         if new_args.len() > 1 {
             args.push(new_args[1]);
         }
@@ -29,15 +33,20 @@ fn main() {
         let rt = runtime::Runtime::new().unwrap();
         //let check = &the_args[0];
         if &args[0] == &"send" {
-            let config = rt.block_on(send_message(args, &tok)).unwrap();
+            let config = rt.block_on(send_message(args, &args_first[1],&tok)).unwrap();
             println!("Message: {:?}", config);
         } else if &args[0] == &"messages" {
             let config = rt.block_on(messages_connected_user(args, &tok)).unwrap();
-            println!("All messages: {:?}", config);
+            let message_list:Vec<&str> = config.split("{").collect();
+
+            println!("All messages:");
+            for i in message_list.iter(){
+                println!("{:?}", i);
+            };
         } else if &args[0] == &"chats" {
             let config = rt.block_on(ret_chats(args, &tok)).unwrap();
             println!("All Chats{:?}", config);
-        } else if &args[0] == &"username" {
+        } else if &args[0] == &"username" && &args[2] == &"password"{
             let config = rt.block_on(login_user(args)).unwrap();
             tok = config;
             println!("Successfully signed in!");
@@ -51,7 +60,7 @@ fn main() {
             println!("COMMANDS: ");
             println!("createuser <username> <password> - creates a user/account");
             println!("messages <username> - shows the messages connected to a user");
-            println!("send <username> <message>(one word only sorry) - sends message to indicated user only can send one word");
+            println!("send <username>:<message> - sends message the colon is necessary to successfully send message");
             println!("chats - command will show chats associated with logged in user");
             println!("username <username> password <password> - signs in user");
             println!(":q - quits all processes");
