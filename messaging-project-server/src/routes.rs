@@ -1,4 +1,7 @@
-use crate::{auth::authorize, handlers::{self}};
+use crate::{
+    auth::authorize,
+    handlers::{self},
+};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -10,11 +13,13 @@ impl reject::Reject for JwtError {}
 
 #[derive(Serialize, Deserialize)]
 pub struct UserResponse {
-  user_id: i32,
-  username: String
+    user_id: i32,
+    username: String,
 }
 
-pub fn routes(pool: Arc<PgPool>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
+pub fn routes(
+    pool: Arc<PgPool>,
+) -> impl Filter<Extract = impl Reply, Error = std::convert::Infallible> + Clone {
     get_user(pool.clone())
         .or(login(pool.clone()))
         .or(create_user(pool.clone()))
@@ -23,6 +28,7 @@ pub fn routes(pool: Arc<PgPool>) -> impl Filter<Extract = impl Reply, Error = Re
         .or(get_chats(pool.clone()))
         .or(get_messages(pool.clone()))
         .or(get_user_with_token(pool.clone()))
+        .recover(handlers::handle_rejection)
 }
 
 fn get_user(pool: Arc<PgPool>) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
@@ -116,19 +122,18 @@ fn with_db(
     warp::any().map(move || pool.clone())
 }
 
-fn with_auth(
-) -> impl Filter<Extract = (i32,), Error = std::convert::Infallible> + Clone {
+fn with_auth() -> impl Filter<Extract = (i32,), Error = std::convert::Infallible> + Clone {
     warp::header::headers_cloned().map(move |headers: HeaderMap| {
         let user_id_res = authorize(headers);
         match user_id_res {
             Ok(suid) => {
-              let ouid = suid.parse::<i32>();
-              match ouid {
-                Ok(uid) => uid,
-                Err(_) => -1
-              }
-            },
-            Err(_) => -1
-          }
+                let ouid = suid.parse::<i32>();
+                match ouid {
+                    Ok(uid) => uid,
+                    Err(_) => -1,
+                }
+            }
+            Err(_) => -1,
+        }
     })
 }
