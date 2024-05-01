@@ -10,6 +10,9 @@ use messaging_project::{
     UserCommand,
     login_user,
     ret_chats,
+    send_group_message,
+    group_get_chats,
+    group_messages_get
 };
 
 fn main() {
@@ -43,9 +46,41 @@ fn main() {
             for i in message_list.iter(){
                 println!("{:?}", i);
             };
+        } else if &args[0] == &"groupmessages" {
+            let config = rt.block_on(group_messages_get(args, &tok)).unwrap();
+            let message_list:Vec<&str> = config.split("{").collect();
+
+            println!("All group messages:");
+            for i in message_list.iter(){
+                if i != &"["{
+                println!("{:?}", i);
+                }
+            };
         } else if &args[0] == &"chats" {
             let config = rt.block_on(ret_chats(args, &tok)).unwrap();
-            println!("All Chats{:?}", config);
+            let chat_list:Vec<&str> = config.split("{").collect();
+
+            println!("All Chats");
+            for i in chat_list.iter(){
+                if i != &"["{
+                println!("{:?}", i);
+                }
+            }
+        } else if &args[0] == &"sendGroup" {
+            let config = rt.block_on(send_group_message(args,&args_first[1], &tok)).unwrap();
+
+            println!("Group Message: {:?}", config);
+        }else if &args[0] == &"groupchats" {
+            let config = rt.block_on(group_get_chats(args, &tok)).unwrap();
+            let chat_list:Vec<&str> = config.split("{").collect();
+
+            println!("All Group Chats: ");
+            for i in chat_list.iter() {
+                if i != &"["{
+                    println!("{:?}", i)
+                }
+            }
+            
         } else if &args[0] == &"username" && &args[2] == &"password"{
             let config = rt.block_on(login_user(args)).unwrap();
             tok = config;
@@ -54,7 +89,7 @@ fn main() {
             let config = rt.block_on(create_user_account(args)).unwrap();
             println!("Create User Status, {:?}", config);
             println!("202 : successful user creation");
-        } else if &args[0] == &":q" {
+        } else if &args[0] == &"quit" {
             break;
         } else if &args[0] == &"-h" || &args[0] == &"-help" {
             println!("COMMANDS: ");
@@ -63,10 +98,12 @@ fn main() {
             println!("send <username>:<message> - sends message the colon is necessary to successfully send message");
             println!("chats - command will show chats associated with logged in user");
             println!("username <username> password <password> - signs in user");
-            println!(":q - quits all processes");
+            println!("sendGroup <username> <username>:<message> - creates a groupchat with only 3 people");
+            println!("groupmessages <chat_id> - returns the group chats with the corresponding id number");
+            println!("groupchats - returns all group chats the current user is asscoiateed with");
+            println!("quit - quits all processes");
         } else {
             println!("Perform a -h or -help command to view valid inputs.");
-            break;
         }
     }
 }
