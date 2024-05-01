@@ -76,6 +76,24 @@ async fn get_chats_helper(token: &str) -> Result<Response, &'static str> {
     Ok(final_res)
 }
 
+async fn create_chat_helper(user: &str, token: &str) -> Result<StatusCode, &'static str> {
+    let url: String = format!("http://localhost:8001/chats/");
+    let mut map = HashMap::new();
+    map.insert("buddy_id", user);
+
+    let client = reqwest::Client::new();
+    let bearer = "Bearer ".to_owned();
+    let res = client.post(url).json(&map).header("Authorization", bearer + token).send().await;
+    let final_res = match res {
+        Ok(r) => r,
+        Err(_) => {
+            return Err("Error: posting request");
+        }
+    };
+    let result = final_res.status();
+    Ok(result)
+}
+
 // helper function to post users 
 async fn user_post_helper(username: &str, password: &str) -> Result<StatusCode, &'static str> {
     let url: String = format!("http://localhost:8001/users/");
@@ -233,6 +251,14 @@ async fn group_messages_get_helper(id: u32, token: &str) -> Result<String, &'sta
 //                              MAIN FUNCTIONS
 // ######################################################################
 
+pub async fn create_chat(args: Vec<&str>, token: &str) -> Result<StatusCode, &'static str> {
+    let username: String = args[1].to_string();
+
+    let res = create_chat_helper(&username, &token).await?;
+
+    Ok(res)
+}
+
 pub async fn group_messages_get(args: Vec<&str>, token: &str) -> Result<String, &'static str> {
     if args.len() < 2 {
         return Err("not enough arguments");
@@ -322,10 +348,10 @@ pub async fn ret_chats(args: Vec<&str>, token: &str) -> Result<String, &'static 
 
 // creates account for user 
 pub async fn create_user_account(args: Vec<&str>) -> Result<StatusCode, &'static str> {
-    if args.len() < 4 {
+    if args.len() < 3 {
         return Err("not enough arguments");
     }
-    if args.len() > 4 {
+    if args.len() > 3 {
         return Err("too many arguments");
     }
     let username: String = args[1].to_string();

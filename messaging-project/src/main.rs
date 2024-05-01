@@ -12,7 +12,8 @@ use messaging_project::{
     ret_chats,
     send_group_message,
     group_get_chats,
-    group_messages_get
+    group_messages_get,
+    create_chat
 };
 
 fn main() {
@@ -70,7 +71,10 @@ fn main() {
             let config = rt.block_on(send_group_message(args,&args_first[1], &tok)).unwrap();
 
             println!("Group Message: {:?}", config);
-        }else if &args[0] == &"groupchats" {
+        } else if &args[0] == &"createchat" {
+            let config = rt.block_on(create_chat(args, &tok)).unwrap();
+            println!("create chat status: {:?}", config);
+        } else if &args[0] == &"groupchats" {
             let config = rt.block_on(group_get_chats(args, &tok)).unwrap();
             let chat_list:Vec<&str> = config.split("{").collect();
 
