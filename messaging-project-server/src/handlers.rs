@@ -19,7 +19,13 @@ pub async fn handle_rejection(err: Rejection) -> Result<impl Reply, std::convert
     Ok(reply::with_status("CONFLICT", StatusCode::CONFLICT))
   } else if let Some(_) = err.find::<errors::AuthorizationError>() {
     Ok(reply::with_status("NOT AUTHORIZED", StatusCode::UNAUTHORIZED))
-  } else {
+  } else if let Some(_) = err.find::<warp::filters::body::BodyDeserializeError>() {
+    // Handle JSON deserialization errors
+    Ok(warp::reply::with_status("Bad Request: Invalid JSON", StatusCode::BAD_REQUEST))
+} else if let Some(_) = err.find::<warp::reject::MissingHeader>() {
+    // Handle missing content-type
+    Ok(warp::reply::with_status("Bad Request: Missing Content-Type", StatusCode::BAD_REQUEST))
+} else {
     Ok(reply::with_status("INTERNAL_SERVER_ERROR", StatusCode::INTERNAL_SERVER_ERROR))
   }
 }
