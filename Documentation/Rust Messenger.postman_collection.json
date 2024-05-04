@@ -150,7 +150,7 @@
 				"header": [],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"message\": \"new message!\"\n}",
+					"raw": "{\n    \"message\": \"new message2w!\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -241,7 +241,7 @@
 					"bearer": [
 						{
 							"key": "token",
-							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjEiLCJleHAiOjE3NDI4NTQ1NDl9.1Ff_EznguJRKp4n5FhwcdXtX3GQ82XGleBfrAo6RBskBmWaYR-iZTNu9iHgYAIuxqZ74ARTpvRpcixSAQeFvYw",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDU5NTYzNjh9.20V9MUR76sGvgLaVzAeHTxzHezEMomIRqq2qckWfsJQmeMR0sIqauSTLr1VlFU7d6zF3ctgiLXYTFI_y9tYSYg",
 							"type": "string"
 						}
 					]
@@ -262,6 +262,111 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "Create Message Group Chat",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDU5NTYzNjh9.20V9MUR76sGvgLaVzAeHTxzHezEMomIRqq2qckWfsJQmeMR0sIqauSTLr1VlFU7d6zF3ctgiLXYTFI_y9tYSYg",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"buddies\": [\"other_guy\", \"lmartin16\"],\n    \"message\": \"yay\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8001/gchats/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"gchats",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Chats Group Chat",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDU5NTYzNjh9.20V9MUR76sGvgLaVzAeHTxzHezEMomIRqq2qckWfsJQmeMR0sIqauSTLr1VlFU7d6zF3ctgiLXYTFI_y9tYSYg",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8001/gchats/",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"gchats",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Messages Group Chat",
+			"request": {
+				"auth": {
+					"type": "bearer",
+					"bearer": [
+						{
+							"key": "token",
+							"value": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpZCI6IjUiLCJleHAiOjE3NDU5NTYzNjh9.20V9MUR76sGvgLaVzAeHTxzHezEMomIRqq2qckWfsJQmeMR0sIqauSTLr1VlFU7d6zF3ctgiLXYTFI_y9tYSYg",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "http://localhost:8001/gchats/{{chatId}}",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8001",
+					"path": [
+						"gchats",
+						"{{chatId}}"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "chatId",
+			"value": "4"
 		}
 	]
 }
